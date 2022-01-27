@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  mariadb:
+    image: mariadb
+    restart: always
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+  stripe:
+    image: cosmtrek/air
+    working_dir: /project-package
+    ports:
+      - 4000:4000
+    volumes:
+      - ./:/project-package
+      - ./air_web.toml:/project-package/.air.toml
+    environment:
+      - STRIPE_SECRET=${STRIPE_SECRET}
+      - STRIPE_KEY=${STRIPE_KEY}
+    depends_on:
+      - mariadb
+  stripe_api:
+    image: cosmtrek/air
+    working_dir: /project-package
+    ports:
+      - 4001:4001
+    volumes:
+      - ./:/project-package
+      - ./air_api.toml:/project-package/.air.toml
+    environment:
+      - STRIPE_SECRET=${STRIPE_SECRET}
+      - STRIPE_KEY=${STRIPE_KEY}
+    depends_on:
+      - mariadb
+
