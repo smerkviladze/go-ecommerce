@@ -27,8 +27,14 @@ build_back:
 	@go build -o dist/gostripe_api ./cmd/api
 	@echo "Back end built!"
 
+## build_invoice: builds the invoice microservice
+build_invoice:
+	@echo "Building invoice microservice..."
+	@go build -o dist/invoice ./cmd/micro/invoice
+	@echo "Invoice microservice built!"
+
 ## start: starts front and back end
-start: start_front start_back
+start: start_front start_back 
 	
 ## start_front: starts the front end
 start_front: build_front
@@ -41,6 +47,12 @@ start_back: build_back
 	@echo "Starting the back end..."
 	@env STRIPE_KEY=${STRIPE_KEY} STRIPE_SECRET=${STRIPE_SECRET} ./dist/gostripe_api -port=${API_PORT}
 	@echo "Back end running!"
+
+## start_invoice: starts the invoice microservice
+start_invoice: build_invoice
+	@echo "Starting the invoice microservice..."
+	@./dist/invoice &
+	@echo "Invoice microservice running!"
 
 ## stop: stops the front and back end
 stop: stop_front stop_back
@@ -57,3 +69,9 @@ stop_back:
 	@echo "Stopping the back end..."
 	@-pkill -SIGTERM -f "gostripe_api -port=${API_PORT}"
 	@echo "Stopped back end"
+
+## stop_invoice: stops the invoice microservice
+stop_invoice:
+	@echo "Stopping the invoice microservice end..."
+	@-pkill -SIGTERM -f "invoice -port=5000"
+	@echo "Stopped invoice microservice"

@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// writeJson writes arbitrary data out of json
+// writeJSON writes aribtrary data out as JSON
 func (app *application) writeJSON(w http.ResponseWriter, status int, data interface{}, headers ...http.Header) error {
 	out, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
@@ -100,4 +100,19 @@ func (app *application) passwordMatches(hash, password string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (app *application) failedValidation(w http.ResponseWriter, r *http.Request, errors map[string]string) {
+	var payload struct {
+		Error   bool              `json:"error"`
+		Message string            `json:"message"`
+		Errors  map[string]string `json:"errors"`
+	}
+
+	payload.Error = true
+	payload.Message = "failed validation"
+	payload.Errors = errors
+
+	app.writeJSON(w, http.StatusUnprocessableEntity, payload)
+
 }

@@ -27,44 +27,28 @@ func (app *application) routes() http.Handler {
 	mux.Post("/api/authenticate", app.CreateAuthToken)
 	mux.Post("/api/is-authenticated", app.CheckAuthentication)
 	mux.Post("/api/forgot-password", app.SendPasswordResetEmail)
+	mux.Post("/api/reset-password", app.ResetPassword)
 
-	mux.Route("/api/admin", func(mux chi.Router) { // /api/admin is prefix for all the following routes
+	// /api/admin is prefix for all the following routes
+	mux.Route("/api/admin", func(mux chi.Router) {
 		mux.Use(app.Auth)
-
 		mux.Post("/virtual-terminal-succeeded", app.VirtualTerminalPaymentSucceeded)
+
+		mux.Get("/sales", app.AllSales)
+		mux.Get("/subscriptions", app.AllSubscriptions)
+
+		mux.Get("/get-sale/{id}", app.GetSale)
+
+		mux.Post("/refund", app.RefundCharge)
+		mux.Post("/cancel-subscription", app.CancelSubscription)
+
+		mux.Get("/users", app.AllUsers)
+		mux.Get("/users/{id}", app.OneUser)
+
+		mux.Put("/users/{id}", app.EditUser)
+		mux.Delete("/users/{id}", app.DeleteUser)
 
 	})
 
 	return mux
 }
-
-// package main
-
-// import (
-// 	"net/http"
-
-// 	"github.com/go-chi/chi/v5"
-// )
-
-// func (app *application) routes() http.Handler {
-// 	mux := chi.NewRouter()
-
-// 	mux.Use(func(next http.Handler) http.Handler {
-// 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-// 			(rw).Header().Set("Access-Control-Allow-Origin", "*")
-// 			(rw).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-// 			(rw).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-// 			if r.Method == http.MethodOptions {
-// 				return
-// 			}
-// 			next.ServeHTTP(rw, r)
-// 		})
-// 	})
-
-// 	mux.Post("/api/payment-intent", app.GetPaymentIntent)
-// 	mux.Get("/api/payment-intent", func(rw http.ResponseWriter, r *http.Request) {
-// 		rw.Write([]byte(""))
-// 	})
-
-// 	return mux
-// }

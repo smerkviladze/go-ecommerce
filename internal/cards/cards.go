@@ -5,15 +5,18 @@ import (
 	"github.com/stripe/stripe-go/v72/customer"
 	"github.com/stripe/stripe-go/v72/paymentintent"
 	"github.com/stripe/stripe-go/v72/paymentmethod"
+	"github.com/stripe/stripe-go/v72/refund"
 	"github.com/stripe/stripe-go/v72/sub"
 )
 
+// Card holds the information needed by this package
 type Card struct {
 	Secret   string
 	Key      string
 	Currency string
 }
 
+// Transaction is the type to store information for a given transaction
 type Transaction struct {
 	TransactionStatusID int
 	Amount              int
@@ -22,12 +25,13 @@ type Transaction struct {
 	BankReturnCode      string
 }
 
+// Charge is an alias to CreatePaymentIntent
 // You can call create payment intent directly, but charge seems to be a more meaningful function name:
-
 func (c *Card) Charge(currency string, amount int) (*stripe.PaymentIntent, string, error) {
 	return c.CreatePaymentIntent(currency, amount)
 }
 
+// CreatePaymentIntent attempts to get a payment intent object from Stripe
 func (c *Card) CreatePaymentIntent(currency string, amount int) (*stripe.PaymentIntent, string, error) {
 	stripe.Key = c.Secret
 
@@ -75,6 +79,7 @@ func (c *Card) RetrievePaymentIntent(id string) (*stripe.PaymentIntent, error) {
 	return pi, nil
 }
 
+// SubscribeToPlan subscribes a stripe customer to a stripe plan
 func (c *Card) SubscribeToPlan(cust *stripe.Customer, plan, email, last4, cardType string) (*stripe.Subscription, error) {
 	stripeCustomerID := cust.ID
 	items := []*stripe.SubscriptionItemsParams{
@@ -94,6 +99,7 @@ func (c *Card) SubscribeToPlan(cust *stripe.Customer, plan, email, last4, cardTy
 	return subscription, nil
 }
 
+// CreateCustomer creates a stripe customer
 func (c *Card) CreateCustomer(pm, email string) (*stripe.Customer, string, error) {
 	stripe.Key = c.Secret
 	customerParams := &stripe.CustomerParams{
@@ -113,6 +119,41 @@ func (c *Card) CreateCustomer(pm, email string) (*stripe.Customer, string, error
 		return nil, msg, err
 	}
 	return cust, "", nil
+}
+
+// Refund refunds an amount for a paymentIntent
+func (c *Card) Refund(pi string, amount int) error {
+	stripe.Key = c.Secret
+	amountToRefund := int64(amount)
+
+	refundParams := &stripe.RefundParams{
+		Amount:        &amountToRefund,
+		PaymentIntent: &pi,
+	}
+
+	_, err := refund.New(refundParams)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// CancelSubscription cencels a subscription, by subscription id
+func (c *Card) CancelSubscription(subID string) error {
+	stripe.Key = c.Secret
+
+	params := &stripe.SubscriptionParams{
+		CancelAtPeriodEnd: stripe.Bool(true),
+	}
+
+	_, err := sub.Update(subID, params)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
 }
 
 // cardErrorMessage returns human redable version of card error messages

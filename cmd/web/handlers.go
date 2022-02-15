@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"myapp/internal/cards"
+	"myapp/internal/encryption"
 	"myapp/internal/models"
 	"myapp/internal/urlsigner"
 	"net/http"
@@ -12,14 +15,14 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Hme displays the home page
+// Home displays the home page
 func (app *application) Home(w http.ResponseWriter, r *http.Request) {
 	if err := app.renderTemplate(w, r, "home", &templateData{}); err != nil {
 		app.errorLog.Println(err)
 	}
 }
 
-//VirtualTerminal displays the virtual terminal page
+// VirtualTerminal displays the virtual terminal page
 func (app *application) VirtualTerminal(w http.ResponseWriter, r *http.Request) {
 	if err := app.renderTemplate(w, r, "terminal", &templateData{}); err != nil {
 		app.errorLog.Println(err)
@@ -40,7 +43,7 @@ type TransactionData struct {
 	BankReturnCode  string
 }
 
-//GetTransactionData gets txn data from post and stripe
+// GetTransactionData gets txn data from post and stripe
 func (app *application) GetTransactionData(r *http.Request) (TransactionData, error) {
 	var txnData TransactionData
 	err := r.ParseForm()
@@ -95,8 +98,21 @@ func (app *application) GetTransactionData(r *http.Request) (TransactionData, er
 	return txnData, nil
 }
 
-// PaymentSucceded displays receipt page
+type Invoice struct {
+	ID        int       `json:"id"`
+	Quantity  int       `json:"quantity"`
+	Amount    int       `json:"amount"`
+	Product   string    `json:"product"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// PaymentSucceeded displays the receipt page
 func (app *application) PaymentSucceeded(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Println("Hello from PaymentSucceeded")
 	err := r.ParseForm()
 	if err != nil {
 		app.errorLog.Println(err)
@@ -149,10 +165,27 @@ func (app *application) PaymentSucceeded(w http.ResponseWriter, r *http.Request)
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
-	_, err = app.SaveOrder(order)
+	orderID, err := app.SaveOrder(order)
 	if err != nil {
 		app.errorLog.Println(err)
 		return
+	}
+
+	//call microservice
+	inv := Invoice{
+		ID:        orderID,
+		Quantity:  order.Quantity,
+		Amount:    order.Amount,
+		Product:   "Widget",
+		FirstName: txnData.FirstName,
+		LastName:  txnData.LastName,
+		Email:     txnData.Email,
+		CreatedAt: time.Now(),
+	}
+
+	err = app.callInvoiceMicro(inv)
+	if err != nil {
+		app.errorLog.Println(err)
 	}
 
 	// Write this data to session, and then redirect user to new page
@@ -160,7 +193,32 @@ func (app *application) PaymentSucceeded(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/receipt", http.StatusSeeOther)
 }
 
-//VirtualTerminalPaymentSucceeded displays the receipt page for virtual terminal transactions
+func (app *application) callInvoiceMicro(inv Invoice) error {
+	url := "http://invoice:5000/invoice/create-and-send"
+	out, err := json.MarshalIndent(inv, "", "\t")
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(out))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("content-type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	app.infoLog.Println(resp.Body)
+	return nil
+}
+
+// VirtualTerminalPaymentSucceeded displays the receipt page for virtual terminal transactions
 func (app *application) VirtualTerminalPaymentSucceeded(w http.ResponseWriter, r *http.Request) {
 
 	txnData, err := app.GetTransactionData(r)
@@ -193,6 +251,7 @@ func (app *application) VirtualTerminalPaymentSucceeded(w http.ResponseWriter, r
 	http.Redirect(w, r, "/virtual-terminal-receipt", http.StatusSeeOther)
 }
 
+// VirtualTerminalReceipt displays a receipt
 func (app *application) VirtualTerminalReceipt(w http.ResponseWriter, r *http.Request) {
 	txn := app.Session.Get(r.Context(), "receipt").(TransactionData)
 	data := make(map[string]interface{})
@@ -208,6 +267,7 @@ func (app *application) VirtualTerminalReceipt(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// Receipt displays a receipt
 func (app *application) Receipt(w http.ResponseWriter, r *http.Request) {
 	txn := app.Session.Get(r.Context(), "receipt").(TransactionData)
 	data := make(map[string]interface{})
@@ -277,6 +337,7 @@ func (app *application) ChargeOnce(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// BronzePlan displays the bronze plan page
 func (app *application) BronzePlan(w http.ResponseWriter, r *http.Request) {
 	widget, err := app.DB.GetWidget(2)
 	if err != nil {
@@ -293,14 +354,13 @@ func (app *application) BronzePlan(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// BronzePlanReceipt displays the receipt for bronze plans
 func (app *application) BronzePlanReceipt(w http.ResponseWriter, r *http.Request) {
 
 	if err := app.renderTemplate(w, r, "receipt-plan", &templateData{}); err != nil {
 		app.errorLog.Print(err)
 	}
 }
-
-//Auth handlers
 
 //LoginPage displays the login page
 func (app *application) LoginPage(w http.ResponseWriter, r *http.Request) {
@@ -310,6 +370,7 @@ func (app *application) LoginPage(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// PostLoginPage handles the posted login form
 func (app *application) PostLoginPage(w http.ResponseWriter, r *http.Request) {
 	app.Session.RenewToken(r.Context())
 
@@ -333,6 +394,7 @@ func (app *application) PostLoginPage(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// Logout logs the user out
 func (app *application) Logout(w http.ResponseWriter, r *http.Request) {
 	app.Session.Destroy(r.Context())
 	app.Session.RenewToken(r.Context())
@@ -340,13 +402,16 @@ func (app *application) Logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
+// ForgotPassword shows the forgot password page
 func (app *application) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	if err := app.renderTemplate(w, r, "forgot-password", &templateData{}); err != nil {
 		app.errorLog.Print(err)
 	}
 }
 
+// ShowResetPassword shows the reset password page (and validates url integrity)
 func (app *application) ShowResetPassword(w http.ResponseWriter, r *http.Request) {
+	email := r.URL.Query().Get("email")
 	theURL := r.RequestURI
 	testURL := fmt.Sprintf("%s%s", app.config.frontend, theURL)
 
@@ -356,9 +421,100 @@ func (app *application) ShowResetPassword(w http.ResponseWriter, r *http.Request
 
 	valid := signer.VerifToken(testURL)
 
-	if valid {
-		w.Write([]byte("valid"))
-	} else {
-		w.Write([]byte("invalid"))
+	if !valid {
+		app.errorLog.Println("Invalid url - tempering detected")
+		return
+	}
+
+	// make sure not expired
+	expired := signer.Expired(testURL, 60)
+	if expired {
+		app.errorLog.Println("Link expired")
+		return
+	}
+
+	encryptor := encryption.Encryption{
+		Key: []byte(app.config.secretkey),
+	}
+
+	encryptedEmail, err := encryptor.Encrypt(email)
+	if err != nil {
+		app.errorLog.Println("Encryption Failed")
+		return
+	}
+
+	// if valid {
+	// 	w.Write([]byte("valid"))
+	// } else {
+	// 	w.Write([]byte("invalid"))
+	// }
+
+	data := make(map[string]interface{})
+	data["email"] = encryptedEmail
+
+	if err := app.renderTemplate(w, r, "reset-password", &templateData{
+		Data: data,
+	}); err != nil {
+		app.errorLog.Print(err)
+	}
+}
+
+// AllSales shows the all sales page
+func (app *application) AllSales(w http.ResponseWriter, r *http.Request) {
+	if err := app.renderTemplate(w, r, "all-sales", &templateData{}); err != nil {
+		app.errorLog.Print(err)
+	}
+}
+
+// AllSubscriptions shows all subscription page
+func (app *application) AllSubscriptions(w http.ResponseWriter, r *http.Request) {
+	if err := app.renderTemplate(w, r, "all-subscriptions", &templateData{}); err != nil {
+		app.errorLog.Print(err)
+	}
+}
+
+// ShowSale shows one sale page
+func (app *application) ShowSale(w http.ResponseWriter, r *http.Request) {
+	stringMap := make(map[string]string)
+	stringMap["title"] = "Sale"
+	stringMap["cancel"] = "/admin/sales"
+	stringMap["refund-url"] = "/api/admin/refund"
+	stringMap["refund-btn"] = "Refund Order"
+	stringMap["refunded-badge"] = "Refunded"
+	stringMap["refunded-msg"] = "Charge Refunded"
+	if err := app.renderTemplate(w, r, "sale", &templateData{
+		StringMap: stringMap,
+	}); err != nil {
+		app.errorLog.Print(err)
+	}
+}
+
+// ShowSubscription shows one subscription page
+func (app *application) ShowSubscription(w http.ResponseWriter, r *http.Request) {
+	stringMap := make(map[string]string)
+	stringMap["title"] = "Subscription"
+	stringMap["cancel"] = "/admin/subscriptions"
+	stringMap["refund-url"] = "/api/admin/cancel-subscription"
+	stringMap["refund-btn"] = "Cancel Subscription"
+	stringMap["refunded-badge"] = "Cancelled"
+	stringMap["refunded-msg"] = "Subscription cancelled"
+	if err := app.renderTemplate(w, r, "sale", &templateData{
+		StringMap: stringMap,
+	}); err != nil {
+		app.errorLog.Print(err)
+	}
+}
+
+//AllUsers shows the all users page
+func (app *application) AllUsers(w http.ResponseWriter, r *http.Request) {
+	if err := app.renderTemplate(w, r, "all-users", &templateData{}); err != nil {
+		app.errorLog.Print(err)
+	}
+}
+
+// OneUser shows one admin user for add/edit/delete
+func (app *application) OneUser(w http.ResponseWriter, r *http.Request) {
+	if err := app.renderTemplate(w, r, "one-user", &templateData{}); err != nil {
+		app.errorLog.Print(err)
 	}
 }

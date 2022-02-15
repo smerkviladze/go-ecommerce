@@ -34,4 +34,12 @@ services:
       - STRIPE_KEY=${STRIPE_KEY}
     depends_on:
       - mariadb
+  invoice:
+    image: cosmtrek/air
+    working_dir: /project-package
+    ports:
+      - 5000:5000
+    volumes:
+      - ./:/project-package
+      - ./air_invoice.toml:/project-package/.air.toml
 

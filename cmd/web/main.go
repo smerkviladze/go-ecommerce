@@ -40,7 +40,7 @@ type application struct {
 	config        config
 	infoLog       *log.Logger
 	errorLog      *log.Logger
-	templateCache map[string]*template.Template //I was looking for HTML template, but failed
+	templateCache map[string]*template.Template
 	version       string
 	DB            models.DBModel
 	Session       *scs.SessionManager
@@ -70,7 +70,7 @@ func main() {
 	flag.StringVar(&cfg.env, "env", "development", "Application environment {development|production}")
 	flag.StringVar(&cfg.db.dsn, "dsn", "sopho:secret@tcp(mariadb:3306)/widgets?parseTime=true&tls=false", "DSN")
 	flag.StringVar(&cfg.api, "api", "http://localhost:4001", "URL to api")
-	flag.StringVar(&cfg.secretkey, "secret", "ssooggbb", "secret key")
+	flag.StringVar(&cfg.secretkey, "secret", "ypng5AYKa7TPuHApfz4bCeXYpSDPzbUk", "secret key")
 	flag.StringVar(&cfg.frontend, "frontend", "http://localhost:4000", "url to front end")
 
 	flag.Parse()
@@ -103,6 +103,8 @@ func main() {
 		DB:            models.DBModel{DB: conn},
 		Session:       session,
 	}
+
+	go app.ListenToWSChannel()
 
 	err = app.serve()
 	if err != nil {

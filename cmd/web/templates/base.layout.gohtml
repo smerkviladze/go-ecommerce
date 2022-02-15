@@ -27,6 +27,7 @@
         <li class="nav-item">
           <a class="nav-link active" aria-current="page" href="/">Home</a>
         </li>
+       
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Products
@@ -37,19 +38,41 @@
           </ul>
         </li>  
 
-         <li id="vt-link" class="nav-item d-none">
-          <a class="nav-link" href="/admin/virtual-terminal">Virtual Terminal</a>
-        </li>
+        {{if eq .IsAuthenticated 1}}
+          <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Admin
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+            <li><a class="dropdown-item" href="/admin/virtual-terminal">Virtual Terminal</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/admin/sales">All Sales</a></li>
+            <li><a class="dropdown-item" href="/admin/subscriptions">All Subscriptions</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/admin/users">All Users</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/logout">Logout</a></li>
+
+          </ul>
+        </li> 
+        {{end}}
 
       </ul>
 
+
+      {{if eq .IsAuthenticated 1}}
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-        <li id="login-link" class="nav-item d-none">
+        <li id="login-link" class="nav-item">
+          <a class="nav-link" href="/logout">Logout</a></li>
+        </li>
+      </ul>
+      {{else}}
+       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <li id="login-link" class="nav-item">
           <a class="nav-link" href="/login">Login</a></li>
         </li>
       </ul>
-
-
+      {{end}}
     </div>
   </div>
 </nav>
@@ -66,20 +89,37 @@
 
 
 <script>
-let loginLink = document.getElementById("login-link");
-let vtLink = document.getElementById("vt-link")
 
-document.addEventListener("DOMContentLoaded", function() {
-  if (localStorage.getItem("token") !== null) {
-    loginLink.innerHTML = '<a class="nav-link" onclick="logout()" href="#!">Logout</a>';
-    vtLink.classList.remove("d-none");
-  
-  } else {   
-    loginLink.innerHTML = '<a class="nav-link" href="/login">Login</a>';
+{{if eq .IsAuthenticated 1}}
+let socket;
+document.addEventListener("DOMContentLoaded", function(){
+  socket = new WebSocket("ws://localhost:4000/ws")
+
+  socket.onopen = () => {
+    console.log("Successfully connected to websockets");
+  }
+
+  socket.onclose = event => { };
+
+  socket.onerror = error => { };
+
+  socket.onmessage = msg => {
+    let data = JSON.parse(msg.data);
+
+    switch (data.action) {
+      case "logout":
+        if (data.user_id === {{.UserID}}) {
+          logout();
+        }
+        break;
+      default:
+    }
   
   }
-  loginLink.classList.remove("d-none");
+
 })
+{{end}}
+
 
 function logout() {
 localStorage.removeItem("token");
